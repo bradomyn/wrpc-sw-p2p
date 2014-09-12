@@ -36,6 +36,7 @@ struct spll_main_state {
 	int delock_count;
 	int dac_index;
 	int enabled;
+	int err_d;
 };
 
 void mpll_init(struct spll_main_state *s, int id_ref,

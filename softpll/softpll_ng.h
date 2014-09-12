@@ -81,10 +81,10 @@ int spll_check_lock(int out_channel);
 
 /* Sets phase setpoint for given output channel. */
 void spll_set_phase_shift(int out_channel, int32_t value_picoseconds);
-
+void spll_set_backup_phase_shift(int32_t value_picoseconds);
 /* Retreives the current phase shift and desired setpoint for given output channel */
 void spll_get_phase_shift(int out_channel, int32_t *current, int32_t *target);
-
+void spll_get_backup_phase_shift(int32_t *current, int32_t *target);
 /* Returns non-zero if the given output channel is busy phase shifting to a new preset */
 int spll_shifter_busy(int out_channel);
 
@@ -131,6 +131,12 @@ void spll_set_dac(int out_channel, int value);
 int spll_get_dac(int out_channel);
 
 void check_vco_frequencies();
+
+void spll_switchover(int new_ref);
+
+void spll_start_backup(int new_ref);
+
+void spll_stop_backup(int new_ref);
 
 #endif // __SOFTPLL_NG_H
 

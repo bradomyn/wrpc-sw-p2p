@@ -29,6 +29,7 @@ int spll_n_chan_ref, spll_n_chan_out;
 #include "spll_common.h"
 #include "spll_debug.h"
 #include "spll_helper.h"
+#include "spll_backup.h"
 #include "spll_main.h"
 #include "spll_ptracker.h"
 #include "spll_external.h"
@@ -71,6 +72,7 @@ struct softpll_state {
 	struct spll_helper_state helper;
 	struct spll_external_state ext;
 	struct spll_main_state mpll;
+	struct spll_backup_state bpll; // backup main pll
 	struct spll_aux_state aux[MAX_CHAN_AUX];
 	struct spll_ptracker_state ptrackers[MAX_PTRACKERS];
 };
@@ -272,6 +274,7 @@ static inline void update_loops(struct softpll_state *s, int tag_value, int tag_
 	if(s->helper.ld.locked)
 	{
 		mpll_update(&s->mpll, tag_value, tag_source);
+		bpll_update(&s->bpll, tag_value, tag_source);
 
 		if(s->seq_state == SEQ_READY) {
 			if(s->mode == SPLL_MODE_SLAVE) {
@@ -284,11 +287,22 @@ static inline void update_loops(struct softpll_state *s, int tag_value, int tag_
 		}
 	}
 }
-
+void show_debug(int irq, struct spll_main_state *ms, struct spll_backup_state *bs)
+{
+	if(ms->enabled)
+	TRACE_DEV("[mpll %d] tag: out=%d, ref=%d | adder: out=%d, "
+	          "ref=%d | id: out=%d, ref=%d | err=%d \n",irq, ms->tag_out_d, 
+	           ms->tag_ref_d, ms->adder_out, ms->adder_ref, ms->id_out, ms->id_ref, 
+	           ms->err_d); 
+	if(bs->enabled)
+	TRACE_DEV("[bpll %d] tag: out=%d, ref=%d | adder: out=%d, "
+	          "ref=%d | id: out=%d, ref=%d | err=%d \n",irq, bs->tag_out_d, 
+	           bs->tag_ref_d, bs->adder_out, bs->adder_ref, bs->id_out, bs->id_ref, 
+	           bs->err_d); 	
+}
 void _irq_entry()
 {
 	struct softpll_state *s = (struct softpll_state *)&softpll;
-
 /* check if there are more tags in the FIFO */
 	while (!(SPLL->TRR_CSR & SPLL_TRR_CSR_EMPTY)) {
 	
@@ -301,9 +315,11 @@ void _irq_entry()
 	}
 
 	irq_count++;
+	if((irq_count % 600)==10)
+		show_debug(irq_count,&s->mpll, &s->bpll);
+
 	clear_irq();
 }
-
 void spll_init(int mode, int slave_ref_channel, int align_pps)
 {
 	static const char *modes[] = { "", "grandmaster", "freemaster", "slave", "disabled" };
@@ -462,10 +478,31 @@ void spll_set_phase_shift(int channel, int32_t value_picoseconds)
 		set_phase_shift(channel, value_picoseconds);
 }
 
+static void set_backup_phase_shift(int32_t value_picoseconds)
+{
+	struct spll_backup_state *st = (struct spll_backup_state *) &softpll.bpll;
+	bpll_set_phase_shift(st, value_picoseconds);
+}
+
+void spll_set_backup_phase_shift(int32_t value_picoseconds)
+{
+	set_backup_phase_shift(value_picoseconds);
+}
+
 void spll_get_phase_shift(int channel, int32_t *current, int32_t *target)
 {
 	volatile struct spll_main_state *st = (struct spll_main_state *)
 	    (!channel ? &softpll.mpll : &softpll.aux[channel - 1].pll.dmtd);
+	int div = (DIVIDE_DMTD_CLOCKS_BY_2 ? 2 : 1);
+	if (current)
+		*current = to_picos(st->phase_shift_current * div);
+	if (target)
+		*target = to_picos(st->phase_shift_target * div);
+}
+
+void spll_get_backup_phase_shift(int32_t *current, int32_t *target)
+{
+	volatile struct spll_backup_state *st = (struct spll_backup_state *)&softpll.bpll;
 	int div = (DIVIDE_DMTD_CLOCKS_BY_2 ? 2 : 1);
 	if (current)
 		*current = to_picos(st->phase_shift_current * div);
@@ -507,7 +544,8 @@ void spll_show_stats()
   
 	if (softpll.mode > 0)
 		    TRACE_DEV("softpll: irqs %d; seq %s; mode %s; "
-		     "alignment_state %s; hLocked-%s; mLocked-%s; hPiY=%d; mPiY=%d; DelCnt=%d\n",
+		     "alignment_state %s; hLocked-%s; mLocked-%s; hPiY=%d; mPiY=%d; DelCnt=%d; "
+		     "\n",
 		     irq_count, 
 		     stringlist_lookup(seq_states, softpll.seq_state), 
 		     stringlist_lookup(softpll_modes, softpll.mode),
@@ -750,4 +788,24 @@ void check_vco_frequencies()
 
 	f_min = spll_measure_frequency(SPLL_OSC_EXT);
 	TRACE_DEV("EXT clock: Freq=%d Hz\n", f_min);
+}
+
+void spll_switchover(int new_ref)
+{
+	struct softpll_state *s = (struct softpll_state *) &softpll;
+	helper_switch_reference(&s->helper,new_ref);
+}
+
+void spll_start_backup(int new_ref)
+{
+	struct softpll_state *s = (struct softpll_state *) &softpll;
+	bpll_init(&s->bpll, new_ref, spll_n_chan_ref);
+	bpll_start(&s->bpll);
+	
+}
+void spll_stop_backup(int new_ref)
+{
+	struct softpll_state *s = (struct softpll_state *) &softpll;
+	bpll_stop(&s->bpll);
+	
 }

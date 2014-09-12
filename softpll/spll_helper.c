@@ -11,6 +11,7 @@
 
 #include "spll_helper.h"
 #include "spll_debug.h"
+#include "irq.h"
 
 const int helper_precomp_coefs [] = 
 { /*b0*/ 60648,
@@ -56,6 +57,9 @@ int helper_update(struct spll_helper_state *s, int tag,
 		if (s->tag_d0 > tag)
 			s->p_adder += (1 << TAG_BITS);
 
+// 		if (s->tag_d0 > tag)
+// 			TRACE_DEV("tag: %d source: %d\n",tag, source);
+		
 		err = (tag + s->p_adder) - s->p_setpoint;
 
 		if (HELPER_ERROR_CLAMP) {
@@ -110,12 +114,12 @@ void helper_start(struct spll_helper_state *s)
 
 void helper_switch_reference(struct spll_helper_state *s, int new_ref)
 {
-#if 0
+	spll_enable_tagger(s->ref_src, 0); // switch off the old one
 	disable_irq();
-	s->ref-src = 1;
+	s->ref_src = new_ref;
 	s->tag_d0 = -1;
-	s->p-addr = 0;
+	s->p_setpoint = 0;
+	s->p_adder = 0;
 	enable_irq();
-	spll_enable_tagger(s->ref_src, 1);
-#endif
+	spll_enable_tagger(s->ref_src, 1); // switch on the new one
 }

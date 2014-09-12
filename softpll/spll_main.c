@@ -67,6 +67,7 @@ void mpll_start(struct spll_main_state *s)
 	s->tag_out_d = -1;
 	s->seq_ref = 0;
 	s->seq_out = 0;
+	s->err_d = 0;
 	s->match_state = MATCH_NEXT_TAG;
 
 	s->phase_shift_target = 0;
@@ -136,7 +137,7 @@ int mpll_update(struct spll_main_state *s, int tag, int source)
 		}
 
 #endif
-
+		s->err_d = err;
 		y = pi_update((spll_pi_t *)&s->pi, err);
 		SPLL->DAC_MAIN = SPLL_DAC_MAIN_VALUE_W(y)
 			| SPLL_DAC_MAIN_DAC_SEL_W(s->dac_index);
