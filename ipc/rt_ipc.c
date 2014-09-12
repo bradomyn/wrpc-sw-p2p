@@ -83,10 +83,31 @@ int rts_set_mode(int mode)
 	return 0;
 }
 
+/* Manage the backup channel */
+int rts_backup_channel(int channel, int cmd)
+{
+	int i;
+	switch(cmd)
+	{
+		case RTS_BACKUP_CH_LOCK:
+		pstate.backup_ref = channel;
+		TRACE("RT [backup port]: locked !!! : %d \n", channel);
+		break;
+		case RTS_BACKUP_CH_ACTIVATE:
+		TRACE("RT [backup port]: activated !!! : %d \n", channel);
+		break;
+		case RTS_BACKUP_CH_DOWN:
+		TRACE("RT [backup port]: down !!! : %d \n", channel);
+		break;
+	}
+
+	return 0;
+}
+
 /* Reference channel configuration (BC mode only) */
 int rts_lock_channel(int channel, int priority)
 {
-	if(pstate.mode != RTS_MODE_BC && pstate.mode != RTS_MODE_BC_BACKUP)
+	if(pstate.mode != RTS_MODE_BC)
 	{
         TRACE("trying to lock while not in slave mode,..\n");
 		return -1;
@@ -102,8 +123,7 @@ int rts_lock_channel(int channel, int priority)
 	}
 	else
 	{
-		pstate.backup_ref = channel;
-		TRACE("RT [slave]: Backup port !!! : %d (prio %d)\n", channel);
+		rts_backup_channel(channel, RTS_BACKUP_CH_LOCK);
 	}
     
 
@@ -226,7 +246,12 @@ static int rts_debug_command_func(const struct minipc_pd *pd, uint32_t *args, vo
     return 0;
 }
 
-
+static int rts_backup_channel_func(const struct minipc_pd *pd, uint32_t *args, void *ret)
+{
+		pstate.ipc_count++;
+    *(int *) ret = rts_backup_channel((int)args[0], (int)args[1]);
+    return 0;
+}
 
 static struct minipc_ch *server;
 
@@ -243,6 +268,7 @@ int rtipc_init(void)
 	rtipc_rts_adjust_phase_struct.f = rts_adjust_phase_func;
 	rtipc_rts_enable_ptracker_struct.f = rts_enable_ptracker_func;
 	rtipc_rts_debug_command_struct.f = rts_debug_command_func;
+	rtipc_rts_backup_channel_struct.f = rts_backup_channel_func;
 	
 	minipc_export(server, &rtipc_rts_set_mode_struct);
 	minipc_export(server, &rtipc_rts_get_state_struct);
@@ -250,6 +276,7 @@ int rtipc_init(void)
   minipc_export(server, &rtipc_rts_adjust_phase_struct);
   minipc_export(server, &rtipc_rts_enable_ptracker_struct);
   minipc_export(server, &rtipc_rts_debug_command_struct);
+  minipc_export(server, &rtipc_rts_backup_channel_struct);
 
 
 	return 0;

@@ -57,6 +57,15 @@
 /* backup slave*/
 #define RTS_MODE_BC_BACKUP 5
 
+/* pseudo-lock the backup channel */
+#define RTS_BACKUP_CH_LOCK     1
+
+/* switchover from failed active channel to the backup one */
+#define RTS_BACKUP_CH_ACTIVATE 2
+
+/* the backup channel was lost (link went down) */
+#define RTS_BACKUP_CH_DOWN     3
+
 /* null reference input */
 #define REF_NONE 255
 
@@ -120,6 +129,9 @@ int rts_set_mode(int mode);
 /* Reference channel configuration (BC mode only) */
 int rts_lock_channel(int channel, int priority);
 
+/* Manage backup channel (BC mode only) */
+int rts_backup_channel(int channel, int cmd);
+
 /* Enabled/disables phase tracking on a particular port */
 int rts_enable_ptracker(int channel, int enable);
 
@@ -177,6 +189,16 @@ static struct minipc_pd rtipc_rts_enable_ptracker_struct = {
 
 static struct minipc_pd rtipc_rts_debug_command_struct = {
 	.name = "ffff",
+	.retval = MINIPC_ARG_ENCODE(MINIPC_ATYPE_INT, int),
+	.args = {
+	    MINIPC_ARG_ENCODE(MINIPC_ATYPE_INT, int ),
+	    MINIPC_ARG_ENCODE(MINIPC_ATYPE_INT, int ),
+	    MINIPC_ARG_END
+	},
+};
+
+static struct minipc_pd rtipc_rts_backup_channel_struct = {
+	.name = "xxxx",
 	.retval = MINIPC_ARG_ENCODE(MINIPC_ATYPE_INT, int),
 	.args = {
 	    MINIPC_ARG_ENCODE(MINIPC_ATYPE_INT, int ),
