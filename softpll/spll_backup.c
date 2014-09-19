@@ -73,7 +73,7 @@ int bpll_update(struct spll_backup_state *s, int tag, int source)
 	if(!s->enabled)
 	    return SPLL_LOCKED;
 
-	int err;
+	int err = 0;
 
 	if (source == s->id_ref)
 		s->tag_ref = tag;
@@ -117,6 +117,23 @@ int bpll_update(struct spll_backup_state *s, int tag, int source)
 		}
 
 #endif
+		if(err!=0 && s->err_d == 0 && s->phase_shift_current == 0 && s->adder_ref == 0)
+		{
+		    s->phase_shift_target = -err;
+		    s->phase_shift_current= -err;
+		    s->adder_ref          = -err;
+		    TRACE_DEV("[bpll] initial set of setpoint %d\n", s->phase_shift_target );
+		}
+		else if(err!=0)
+		{
+// 		    TRACE_DEV("[bpll] adjust setpoint %d by %d\n", s->phase_shift_target,(err-s->err_d) );
+		    s->phase_shift_target =- (err-s->err_d);
+// 		    s->phase_shift_current=- (err-s->err_d);
+// 		    s->adder_ref          =- (err-s->err_d);
+		    
+		}
+		
+		
 		s->err_d = err;
 		s->tag_out = -1;
 		s->tag_ref = -1;
@@ -126,8 +143,8 @@ int bpll_update(struct spll_backup_state *s, int tag, int source)
 			s->adder_ref -= MPLL_TAG_WRAPAROUND;
 			s->adder_out -= MPLL_TAG_WRAPAROUND;
 		}
-
-		if (s->ld.locked) {
+		
+// 		if (s->ld.locked) {
 			if (s->phase_shift_current < s->phase_shift_target) {
 				s->phase_shift_current++;
 				s->adder_ref++;
@@ -136,8 +153,8 @@ int bpll_update(struct spll_backup_state *s, int tag, int source)
 				s->phase_shift_current--;
 				s->adder_ref--;
 			}
-		}
-		if (ld_update((spll_lock_det_t *)&s->ld, err))
+// 		}
+// 		if (ld_update((spll_lock_det_t *)&s->ld, err))
 			return SPLL_LOCKED;
 	}
 
@@ -171,6 +188,7 @@ int bpll_set_phase_shift(struct spll_backup_state *s, int desired_shift_ps)
 {
 	int div = (DIVIDE_DMTD_CLOCKS_BY_2 ? 2 : 1);
 	s->phase_shift_target = from_picos(desired_shift_ps) / div;
+	TRACE_DEV("[bpll] set target phaseshift %d\n", s->phase_shift_target);
 	return 0;
 }
 
