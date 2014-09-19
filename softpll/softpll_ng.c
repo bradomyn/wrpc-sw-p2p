@@ -287,8 +287,10 @@ static inline void update_loops(struct softpll_state *s, int tag_value, int tag_
 		}
 	}
 }
-void show_debug(int irq, struct spll_main_state *ms, struct spll_backup_state *bs)
+void show_debug(int irq, struct spll_main_state *ms, struct spll_backup_state *bs,
+		struct spll_ptracker_state *ptrackers)
 {
+	int i;
 	if(ms->enabled)
 	TRACE_DEV("[mpll %d] tag: out=%d, ref=%d | adder: out=%d, "
 	          "ref=%d | id: out=%d, ref=%d | err=%d \n",irq, ms->tag_out_d, 
@@ -299,6 +301,14 @@ void show_debug(int irq, struct spll_main_state *ms, struct spll_backup_state *b
 	          "ref=%d | id: out=%d, ref=%d | err=%d \n",irq, bs->tag_out_d, 
 	           bs->tag_ref_d, bs->adder_out, bs->adder_ref, bs->id_out, bs->id_ref, 
 	           bs->err_d); 	
+	for(i=0;i<18;i++)
+	{
+		register struct spll_ptracker_state *st = ptrackers + i;
+		if(st->enabled) 
+		TRACE_DEV("[tracker %d] avg_cnt: %d,  n_avg: %d, acc: %d, ready: %d, "
+		" phase_val: %d\n", i,st->avg_count,st->n_avg,st->acc, st->ready, 
+		st->phase_val); 
+	}
 }
 void _irq_entry()
 {
@@ -316,7 +326,7 @@ void _irq_entry()
 
 	irq_count++;
 	if((irq_count % 600)==10)
-		show_debug(irq_count,&s->mpll, &s->bpll);
+		show_debug(irq_count,&s->mpll, &s->bpll,s->ptrackers);
 
 	clear_irq();
 }
@@ -513,7 +523,15 @@ void spll_get_backup_phase_shift(int32_t *current, int32_t *target)
 int spll_read_ptracker(int channel, int32_t *phase_ps, int *enabled)
 {
 	volatile struct spll_ptracker_state *st = &softpll.ptrackers[channel];
+	struct softpll_state *s = (struct softpll_state *)&softpll;
+	
 	int phase = st->phase_val;
+// 	if(s->bpll.enabled && channel == s->bpll.id_ref && phase != 0)
+// 	{
+// 	  TRACE_DEV("phase_ps[%d] - s->bpll->err_d[%d] @ %d \n",phase, s->bpll.err_d, s->bpll.id_ref);
+// 	  phase = phase + s->bpll.err_d;
+// 	}
+	
 	if (phase < 0)
 		phase += (1 << HPLL_N);
 	else if (phase >= (1 << HPLL_N))
@@ -525,6 +543,7 @@ int spll_read_ptracker(int channel, int32_t *phase_ps, int *enabled)
 	}
 
 	*phase_ps = to_picos(phase);
+
 	if (enabled)
 		*enabled = ptracker_mask & (1 << st->id) ? 1 : 0;
 	return st->ready;
@@ -794,6 +813,39 @@ void spll_switchover(int new_ref)
 {
 	struct softpll_state *s = (struct softpll_state *) &softpll;
 	helper_switch_reference(&s->helper,new_ref);
+	s->mpll.adder_ref     =    s->bpll.adder_ref;
+	s->mpll.adder_out     =    s->bpll.adder_out;
+	s->mpll.tag_ref       =    s->bpll.tag_ref;
+	s->mpll.tag_out       =    s->bpll.tag_out;
+	s->mpll.tag_ref_d     =    s->bpll.tag_ref_d;
+	s->mpll.tag_out_d     =    s->bpll.tag_out_d;
+	s->mpll.seq_ref       =    s->bpll.seq_ref;
+	s->mpll.phase_shift_target     =    s->bpll.phase_shift_target;
+	s->mpll.phase_shift_current     =    s->bpll.phase_shift_current;
+	s->mpll.id_out     =    s->bpll.id_out;
+	s->mpll.id_ref       =  s->bpll.id_ref;
+	s->mpll.delock_count     =    s->bpll.delock_count;
+	s->mpll.dac_index     =    s->bpll.dac_index;
+	s->mpll.enabled     =    s->bpll.enabled;
+	s->mpll.err_d     =    s->bpll.err_d;
+	
+	s->bpll.adder_ref     =    0;
+	s->bpll.adder_out     =    0;
+	s->bpll.tag_ref       =    -1;
+	s->bpll.tag_out       =    -1;
+	s->bpll.tag_ref_d     =    -1;
+	s->bpll.tag_out_d     =    -1;
+	s->bpll.seq_ref       =   0;
+	s->bpll.phase_shift_target     =    0;
+	s->bpll.phase_shift_current     = 0;
+	s->bpll.id_out     =    0;
+	s->bpll.delock_count     =   0;
+	s->bpll.dac_index     =    0;
+	s->bpll.enabled     =    0;
+	s->bpll.err_d     =    0;
+	
+	
+	
 }
 
 void spll_start_backup(int new_ref)

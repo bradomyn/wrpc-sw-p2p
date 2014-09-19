@@ -99,6 +99,8 @@ int rts_backup_channel(int channel, int cmd)
 		break;
 		case RTS_BACKUP_CH_ACTIVATE:
 		spll_switchover(pstate.backup_ref);
+		pstate.current_ref = pstate.backup_ref;
+		
 		TRACE("RT [backup port]: activated !!! : %d \n", channel);
 		break;
 		case RTS_BACKUP_CH_DOWN:
@@ -217,6 +219,11 @@ static int rts_get_state_func(const struct minipc_pd *pd, uint32_t *args, void *
         tmp->channels[i].phase_current = htonl(pstate.channels[i].phase_current);
         tmp->channels[i].phase_loopback = htonl(pstate.channels[i].phase_loopback);
         tmp->channels[i].flags = htonl(pstate.channels[i].flags);
+        if(i<2)
+        TRACE("RT [chan: %d] setpoint: %d, loopback real: %d [cor:%d], prio: %d, cur: %d\n", 
+        i, tmp->channels[i].phase_setpoint, htonl(pstate.channels[i].phase_loopback),
+        tmp->channels[i].phase_loopback, tmp->channels[i].priority, 
+        tmp->channels[i].phase_current);
     }
 
     return 0;
