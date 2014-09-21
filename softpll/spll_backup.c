@@ -13,20 +13,34 @@
  * ------------------------------------------------------------------------------------------
  * Intro: my understanding of SoftPLL and its components
  * ------------------------------------------------------------------------------------------
- * The DDMTD clock (125+MHz or 62.5+MHz) is used to tag:
+ * The DDMTD clock is the one with slight offset to the reference, i.e.
+ *   124.992371 MHz = [ 2^14/(2^14 + 1) ] *  125MHz or
+ *    62.496185 MHz = [ 2^14/(2^14 + 1) ] * 62,5MHz
+ * Mixing of DDMTD clock with ref/feedback clock results in an "offset clock" of
+ * 7.629 kHz or 3.814 kHz respectively  
+ * 
+ * The "DDMTD clock" (125+MHz or 62.5+MHz) is used run a counter (TODO: verify this info) 
+ * which tags the edge of the "offset clock".
+ * The "DDMTD clock" is mixed with the following clocks to get the tags:
  * 1) feedback clock - the one that we control, which is local and which we use to encode
  *                     data on all the port
  * 2) active ref clk - the clock that is used as the reference for the feedback
  * 3) backup ref clks- the clocks that are backup
  * 
  * three usages of the tags:
- * 1) helper PLL uses consecutive tags of the feedback clock to check whether it's frequency
- *    is "perfect", i.e. subtraction of consecutive tags should give perfect period
- *    (of the offset frequency, the one that results from mixing DDMTD clock with the
- *    other clock)
- * 2) main PLL uses tags for two things:
+ * 1) helper PLL controls "DDMTD clock". It  uses consecutive tags of the ref rx clock to 
+ *    check whether it's frequency is "perfect". In other words, it uses the measurement 
+ *    result (tags) to check the frequency of the clock (DDMTD clock) used for the measurement.
+ *    The "offset clock" period should be (2^14) times the period of the "DDTMD clock" 
+ *    (NOTE: the "offset clock" period should be (2^14+1) times the period of the 
+ *    ref/feedback clock).
+ *    So, consecutive tags should give perfect period (i.e. 2^14) of the the offset frequency.
+ *    If this is not the case, the frequency of the "DDMTD clock" must be changed to give
+ *    a correct measurement.
+ *    This is how I understand it, ML 
+ * 2) main PLL, controls the "feedback clock" and uses tags for two things:
  *    - control of frequency by checking whether the time advances in both clocks at the same
- *      pace, in other words the rising edge of both clocks, relative to the DDMTD counter
+ *      pace, in other words the rising edge of both offset clocks, relative to the DDMTD counter
  *      (i.e. tag value), is tried to be maintained at the same value. In this way, the
  *      feedback clock follows the ref clock. 
  *    - once the feedback and ref are syntonized, the phase is adjusted:
@@ -39,7 +53,7 @@
  * 3) phase tracker uses the tags to measure the real phase offset 
  *    - it can measure phase offsets between the feedback clock and any other clock (rx ref, 
  *      aux)
- *    - in WRPTP synchronization the phase measurement between feedback and rx ref is used
+ *    - in WRPTP synchronization, the phase measurement between feedback and rx ref is used
  *    - in nodes, the phase measurement between feedback and oux channels is used
  *    - in the backup switchover, the phase measurement between feedback and backup rx clock(s)
  *      is used
@@ -91,11 +105,11 @@
  * Backup switchover
  *-------------------------------------------------------------------------------------------
  * The switch over needs to mess up with the following parts of SoftPLL
- * 1) helper PLL - the source of the DDMTD frequency needs to be changed
+ * 1) helper PLL - the source of the DDMTD clcok needs to be changed
  * 2) "main PLL" - what was done: a "backup PLL" was added which is a stripped down version
  *                 of the "main PLL". the aim of the backup PLL is to "fake" PLL functionalities
- *                 for the WRPTP, that includes: lock and timestamps adjustment. This enables
- *                 to obtain "operational data" that would be true if the backup PLL was actualy
+ *                 for the WRPTP, that includes: lock and timestamps enhancement. This enables
+ *                 to obtain "operational data" that would be true if the backup PLL was
  *                 working as the main PLL. The operational data includes 
  *                 1) in softPLL: setpoint and phase value/offset measurement in the SoftPLL 
  *                 2) in WRPTP  : link delay and offset from master
@@ -114,19 +128,21 @@
  * - the PI controller of the PLL works based on tags provided, i.e. it is tag-driven, updated
  *   each time new tag is received from HDL via FIFO+irq
  * - when the link goes down, there is no tag updates and the last DAC control word is 
- *   maintained. This is some kind of simple holdover. The last control world might be 
- *   somehow corrupted since the link never goes down instantly. So here some simple average
- *   might be required if the performance is not good enough
+ *   maintained. This is some kind of simple holdover.
+ *   NOTE: The last control world might be somehow corrupted since the link never goes down 
+ *   instantly. 
+ *   TODO: So here some simple average might be required if the performance is not good enough
  * - the link down is detected in the wrsw_hal which polls link state and manages all ports
- * - when wrsw_hal detects link down the link set to be backup, it commands SoftPLL to 
+ * - when wrsw_hal detects "link down" on the link set to be backup, it commands SoftPLL to 
  *   switchover:
  *   wrsw_hal/hal_ports.c:handle_link_down()->rts_backup_channel(p->hw_index, RTS_BACKUP_CH_ACTIVATE);
- * - the switchover of helper PLL is done by (softpll/spll_helper.c:helper_switch_reference()) 
+ * - the switchover of helper PLL is done by (softpll/spll_helper.c:helper_switch_reference()): 
  *   1) switching off the tagger on the active rx clk, 
  *   2) "clearing the current tag-based measurement (setting p_adder=0, tag_d0-1 forces that)
  *   3) switching on the tagger on the port defined to be backup (active from now on)..
- *      TODO: hmm, this seems not necessary
+ *      TODO: hmm, this seems not necessary, to be verified 
  *   4) changing the ref_src value 
+ * - after getting two consecutive tags, the PI sturts running again
  * - since the (previously) active rx ref clock and the (previously) backup rx ref clock are
  *   (supposed to be) the same and the frequency should not drift too much during the process,
  *   this should work.
@@ -146,7 +162,7 @@
  * 
  * setpoint ~= phase measurement +/-jitter (due to frequency error)
  * 
- * it is represented by a special backup PLL structure: 
+ * it is represented by a special backup PLL structure (softpll/spll_backup.h): 
  * struct spll_backup_state bpll
  * which is derived from the main PLL. both sit in the softpll_state "global" structue
  * TODO: to enable more backup ports, bpll must be a table
