@@ -87,11 +87,12 @@ int rts_set_mode(int mode)
 	return 0;
 }
 
-/* Manage the backup channel */
+/* Manage the backup channel, called by wrsw_hal via IPC */
 int rts_backup_channel(int channel, int cmd)
 {
 	switch(cmd)
 	{
+		/* activate backup and remember on which port it is*/
 		case RTS_BACKUP_CH_LOCK:
 		pstate.backup_ref = channel;
 		spll_start_backup(channel);

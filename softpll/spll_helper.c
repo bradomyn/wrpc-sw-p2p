@@ -121,5 +121,5 @@ void helper_switch_reference(struct spll_helper_state *s, int new_ref)
 	s->p_setpoint = 0;
 	s->p_adder = 0;
 	enable_irq();
-	spll_enable_tagger(s->ref_src, 1); // switch on the new one
+	spll_enable_tagger(s->ref_src, 1); // switch on the new one TODO: not needed ?
 }

@@ -510,6 +510,9 @@ void spll_get_phase_shift(int channel, int32_t *current, int32_t *target)
 		*target = to_picos(st->phase_shift_target * div);
 }
 
+/*
+ * 
+ */
 void spll_get_backup_phase_shift(int32_t *current, int32_t *target)
 {
 	volatile struct spll_backup_state *st = (struct spll_backup_state *)&softpll.bpll;
@@ -808,11 +811,30 @@ void check_vco_frequencies()
 	f_min = spll_measure_frequency(SPLL_OSC_EXT);
 	TRACE_DEV("EXT clock: Freq=%d Hz\n", f_min);
 }
-
+/*
+ * this is called by the wrsw_hal when it detects failure of the active port and 
+ * a backup port is available
+ * 
+ * new_ref indicates the new active port (which is currently running as backup)
+ */
 void spll_switchover(int new_ref)
 {
 	struct softpll_state *s = (struct softpll_state *) &softpll;
+	
+	/*switch over helper reference*/
 	helper_switch_reference(&s->helper,new_ref);
+	
+	/*switch over between bpll and mpll by copying the appropriate runtime and config
+	  data 
+	  TODO: copying of the config data probably not needed, but we need to ensure
+	  this is the same, it seems
+	  TODO: this function might need to get more universal, if possible, to enable
+	        switching over between backup port that is now being active and a newly
+	        up port which should be the active one (prio=0). In other words, we want to 
+	        switchover between working ports. this should be able having the new port 
+	        first ackt as a backup, intill all runtime parameters are learnt, then 
+	        using this function to switchover.
+	*/
 	s->mpll.adder_ref     =    s->bpll.adder_ref;
 	s->mpll.adder_out     =    s->bpll.adder_out;
 	s->mpll.tag_ref       =    s->bpll.tag_ref;
@@ -829,6 +851,7 @@ void spll_switchover(int new_ref)
 	s->mpll.enabled     =    s->bpll.enabled;
 	s->mpll.err_d     =    s->bpll.err_d;
 	
+	/*stop bpll*/
 	s->bpll.adder_ref     =    0;
 	s->bpll.adder_out     =    0;
 	s->bpll.tag_ref       =    -1;
@@ -842,12 +865,26 @@ void spll_switchover(int new_ref)
 	s->bpll.delock_count     =   0;
 	s->bpll.dac_index     =    0;
 	s->bpll.enabled     =    0;
-	s->bpll.err_d     =    0;
-	
-	
-	
+	s->bpll.err_d     =    0;	
 }
-
+/*
+ * called by PPSi from proto-ext-whiterabbit/state-wrs-s-lock.c via the following path
+ * 1) ppsi/proto-ext-whiterabbit/state-wrs-s-lock.c: wr_s_lock()->locking_enable()
+ * 2) ppsi/time-wrs/wrs-time.c: wrs_locking_enable 
+ *    -- here the proper priority is passed down
+ *    -- the prio is read from ppi->slave_prio that is set statically by configuration 
+ *    -- TODO: the BMCA was also modified to set the proper priority but not tested, surely
+ *             this will need more thinking
+ *       TODO: so far only single priority is "settable" and only one backup port possible,
+ *             the priorities were expected to handle more backup ports, with shuffling of
+ *             their priorities. this is to be done when all other works
+ * 3) ppsi/wrsw_hal/hal_exports.c: halexp_lock_cmd()
+ * 4) ppsi/wrsw_hal/hal_portc: hal_port_start_lock()
+ * 5) wrpc-sw/ipc/rt_ipc.c: rts_lock_channel()
+ * 6) wrpc-sw/ipc/rt_ipc.c: rts_backup_channel()
+ * 7) wrpc-sw/ipc/rt_ipc.c: spll_switchover()
+ * TODO: this  "path" seems a bit overkill, can it be simplified ?
+ */
 void spll_start_backup(int new_ref)
 {
 	struct softpll_state *s = (struct softpll_state *) &softpll;
@@ -855,6 +892,10 @@ void spll_start_backup(int new_ref)
 	bpll_start(&s->bpll);
 	
 }
+/*
+ * called by wrsw_hal.c:static int handle_link_down() when the backup port is detected
+ * to have gone down/dead
+ */
 void spll_stop_backup(int new_ref)
 {
 	struct softpll_state *s = (struct softpll_state *) &softpll;
