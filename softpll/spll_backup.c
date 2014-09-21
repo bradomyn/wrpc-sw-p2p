@@ -93,7 +93,7 @@
  * - extended wr_phytool to enable setpoint adjustment
  * - added some debugs
  *
- * wrpc/softpll
+ * wrpc/softpll (wrpc-sw git repo, branch: ML-140901-switchover):
  * - added tones of debugs which are nasty but help to get an idea what is happening
  * - added IPC communication with wrsw_hal to handle backup
  * - added bakcup pll to handle backup port
