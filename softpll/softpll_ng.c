@@ -345,8 +345,8 @@ void spll_init(int mode, int slave_ref_channel, int align_pps)
 
 	uint32_t csr = SPLL->CSR;
 
-	spll_n_chan_ref = SPLL_CSR_N_REF_R(csr);
-	spll_n_chan_out = SPLL_CSR_N_OUT_R(csr);
+	spll_n_chan_ref = SPLL_CSR_N_REF_R(csr); // id of reference channels (max 32, val =18)
+	spll_n_chan_out = SPLL_CSR_N_OUT_R(csr); // id of output channels    (max 8, val=1)
 	
 	s->mode = mode;
 	s->delock_count = 0;
@@ -529,11 +529,6 @@ int spll_read_ptracker(int channel, int32_t *phase_ps, int *enabled)
 	struct softpll_state *s = (struct softpll_state *)&softpll;
 	
 	int phase = st->phase_val;
-// 	if(s->bpll.enabled && channel == s->bpll.id_ref && phase != 0)
-// 	{
-// 	  TRACE_DEV("phase_ps[%d] - s->bpll->err_d[%d] @ %d \n",phase, s->bpll.err_d, s->bpll.id_ref);
-// 	  phase = phase + s->bpll.err_d;
-// 	}
 	
 	if (phase < 0)
 		phase += (1 << HPLL_N);

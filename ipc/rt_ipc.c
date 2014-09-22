@@ -32,8 +32,8 @@ static void clear_state()
 	    pstate.channels[i].flags = CHAN_REF_VALID;
     }
     pstate.flags = 0;
-    pstate.current_ref = 0;
-    pstate.backup_ref = 0;
+    pstate.current_ref = 0;//TODO[?]: init with -1 to make sure it does not much channel 0
+    pstate.backup_ref = 0; //TODO[?]: init with -1 to make sure it does not much channel 0
     pstate.mode = RTS_MODE_DISABLED;
     pstate.ipc_count = 0;
 }
@@ -44,7 +44,7 @@ int rts_adjust_phase(int channel, int32_t phase_setpoint)
     TRACE("Adjusting phase: ref channel %d, setpoint=%d ps.\n", channel, phase_setpoint);
     if(pstate.current_ref == channel)
          spll_set_phase_shift(0, phase_setpoint);
-    if(pstate.backup_ref == channel)
+    else if(pstate.backup_ref == channel)
 	 spll_set_backup_phase_shift(phase_setpoint);
     
     pstate.channels[channel].phase_setpoint = phase_setpoint;
@@ -66,7 +66,7 @@ int rts_set_mode(int mode)
 		{ RTS_MODE_GM_FREERUNNING, SPLL_MODE_FREE_RUNNING_MASTER, 1, "Grand Master (free-running clock)" },
 		{ RTS_MODE_BC, SPLL_MODE_SLAVE, 0, "Boundary Clock (slave)" },
 		{ RTS_MODE_DISABLED, SPLL_MODE_DISABLED, 1, "PLL disabled" },
-		{ RTS_MODE_BC_BACKUP, SPLL_MODE_BACKUP_SLAVE, 2, "Activate backup" },
+		{ RTS_MODE_BC_BACKUP, SPLL_MODE_BACKUP_SLAVE, 2, "Activate backup" }, //not used for the time being, separat functin to manage backup port
 		{ 0,0,0, NULL }
 	};
 

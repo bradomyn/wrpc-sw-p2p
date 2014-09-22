@@ -45,7 +45,7 @@ int ptrackers_update(struct spll_ptracker_state *ptrackers, int tag,
 														/* 1/2 - 3/4  */   0, 0, 0, 0,
 														/* 3/4 - 1   */    (1<<HPLL_N), 0, 0, 0};
 												
-	if(source == spll_n_chan_ref)
+	if(source == spll_n_chan_ref) //ML: reference here means feedback clock (so, local system clock)
 	{
 		tag_ref = tag;
 		return 0;
@@ -56,8 +56,13 @@ int ptrackers_update(struct spll_ptracker_state *ptrackers, int tag,
 
 	if(!s->enabled)
 		return 0;
-
-	register int delta = (tag_ref - tag) & ((1 << HPLL_N) - 1);
+	
+	//ML: the phase offset is measured betwen (confusing usage of "ref" with respect
+	//    to other places in spll):
+	//    - tag    : the rising edge of the rx ref clock (the L1 clock, the uplink clock), AND
+	//    - tag_ref: the rising edge of the feedback clock (the system clock, the PTP clock)
+	//    i.e. positive delta if first L1 rising edge, then PTP rising edge
+	register int delta = (tag_ref - tag) & ((1 << HPLL_N) - 1); //ML: PTP_clk_tag - L1_clk_tag
 	register int index = delta >> (HPLL_N - 2);
 
 
