@@ -307,35 +307,6 @@ int bpll_update(struct spll_backup_state *s, int tag, int source)
 		}
 
 #endif
-		/*
-		 * In theory, the phase of the feedback clock (when synchronized/syntonized
-		 * with the active rx clk clock) is in the very right place. This means that
-		 * the phase measurement shows what the setpoint should be, and the same
-		 * applies to the error: it shows the "intended" setpoint. it should be in
-		 * fact close to zero since we are perfectly synchonized with the second
-		 * port, So, when first called, the phase_shift (so the adder_ref) is set
-		 * with the value of the error
-		 * TODO: question is whether the first value measured is somehow correct
-		 * 
-		 */
-		if(err!=0 && s->err_d == 0 && s->phase_shift_current == 0 && s->adder_ref == 0)
-		{
-		    s->phase_shift_target = -err;
-		    s->phase_shift_current= -err;
-		    s->adder_ref          = -err;
-		    TRACE_DEV("[bpll] initial set of setpoint %d\n", s->phase_shift_target );
-		}
-		/*
-		 * THe idea is that the change in the error should affect the change  of the 
-		 * phase shift (so setpoint), since the setpoint compensate the phase shift.
-		 * Meybe, this should be done by the WRPTP...
-		 * TODO: verify whether this is the way to go, I think not
-		 */
-		else if(err!=0)
-		{
-		    s->phase_shift_target =- (err-s->err_d);	    
-		}
-		
 		
 		s->err_d = err;
 		s->tag_out = -1;

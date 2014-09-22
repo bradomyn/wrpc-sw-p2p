@@ -530,6 +530,19 @@ int spll_read_ptracker(int channel, int32_t *phase_ps, int *enabled)
 	
 	int phase = st->phase_val;
 	
+	/*ML: if the timestamp is not corrected with the phase measurement, PPSi will try
+	 *    to compensate by setting setpoint. THe phase measurement should be more or 
+	 *    less the value of the setpoint. 
+	 *    By making the phase measurement equal to setpoint, there exist a feedback
+	 *    system: if the setpoint is wrong because of wrong timestamps,, PPSi will try to 
+	 *    compensate by adjusting the setpoint...
+	 */
+	if(s->bpll.enabled && channel == s->bpll.id_ref)
+	{
+	  phase = s->phase_shift_current;
+	  TRACE_DEV("[b-ptracker] set phase to setpoint: %d \n",phase);
+	}
+	
 	if (phase < 0)
 		phase += (1 << HPLL_N);
 	else if (phase >= (1 << HPLL_N))
