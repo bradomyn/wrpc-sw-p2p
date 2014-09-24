@@ -3,4 +3,4 @@
 	url = git://ohwr.org/white-rabbit/ppsi/ptp-noposix.git
 [submodule "ppsi"]
 	path = ppsi
-	url = git://ohwr.org/white-rabbit/ppsi.git
+	url = git@github.com:bradomyn/ppsi-p2p.git
